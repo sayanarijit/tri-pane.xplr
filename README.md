@@ -8,4 +8,4 @@
 require("tri-pane").setup({ as_default_layout = true })
 ```
 
-![image](https://user-images.githubusercontent.com/11632726/195401647-7bf681fc-5b6d-4454-8671-16146a1f2d7d.png)
+https://user-images.githubusercontent.com/11632726/195410250-51cfe26d-5ca3-472d-9d89-16a8a86e8f36.mp4

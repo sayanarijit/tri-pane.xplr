@@ -5,6 +5,7 @@ local xplr = xplr
 local state = {
   listings = {},
 }
+
 local function quote(str)
   return "'" .. string.gsub(str, "'", [['"'"']]) .. "'"
 end
@@ -60,7 +61,9 @@ end
 local function list(path)
   if state.listings[path] == nil then
     local files = {}
-    local pfile = assert(io.popen("ls -a " .. quote(path)))
+    local tmpfile = os.tmpname()
+    assert(io.popen("ls -a " .. quote(path) .. " > " .. tmpfile .. " 2> /dev/null ")):close()
+    local pfile = assert(io.open(tmpfile))
     local i = 1
     for file in pfile:lines() do
       if i > 2 then
@@ -70,6 +73,7 @@ local function list(path)
       end
     end
     pfile:close()
+    os.remove(tmpfile)
 
     state.listings[path] = { files = files, focus = 0 }
   end

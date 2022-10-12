@@ -47,28 +47,46 @@ local function dirname(filepath)
   return result, is_changed
 end
 
+local function offset(listing, height)
+  local h = height - 3
+  local start = (listing.focus - (listing.focus % h))
+  local result = {}
+  for i = start + 1, start + h, 1 do
+    table.insert(result, listing.files[i])
+  end
+  return result
+end
+
 local function list(path)
   if state.listings[path] == nil then
     local files = {}
     local pfile = assert(io.popen("ls -a " .. quote(path)))
+    local i = 1
     for file in pfile:lines() do
-      table.insert(files, file)
+      if i > 2 then
+        table.insert(files, file)
+      else
+        i = i + 1
+      end
     end
     pfile:close()
 
-    state.listings[path] = files
+    state.listings[path] = { files = files, focus = 0 }
   end
   return state.listings[path]
 end
 
 local function render_parent(ctx)
   local parent, _ = dirname(ctx.app.pwd)
+  local listing = { focus = 0, files = {} }
   if parent == "/" then
-    return {}
+    -- Empty
   elseif parent == "" then
-    return state.listings["/"] or list("/")
+    listing = state.listings["/"] or list("/")
+  else
+    listing = state.listings[parent] or list(parent)
   end
-  return state.listings[parent] or list(parent)
+  return offset(listing, ctx.layout_size.height)
 end
 
 local function render_focus(ctx)
@@ -82,7 +100,10 @@ local function render_focus(ctx)
     if n.is_file then
       return read(n.absolute_path, ctx.layout_size.height)
     elseif n.is_dir then
-      return state.listings[n.absolute_path] or list(n.absolute_path)
+      return offset(
+        state.listings[n.absolute_path] or list(n.absolute_path),
+        ctx.layout_size.height
+      )
     else
       return stat(n)
     end
@@ -155,7 +176,7 @@ local function capture(app)
     table.insert(files, path)
   end
 
-  state.listings[app.pwd] = files
+  state.listings[app.pwd] = { files = files, focus = app.directory_buffer.focus }
 end
 
 local function enter(app)

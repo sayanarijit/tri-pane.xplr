@@ -14,7 +14,7 @@ local function invert(text)
 end
 
 local function stat(node)
-  return { node.mime_essence }
+  return node.mime_essence
 end
 
 local function read(path, height)
@@ -25,9 +25,9 @@ local function read(path, height)
   end
 
   local i = 0
-  local lines = {}
+  local res = ""
   for line in p:lines() do
-    table.insert(lines, line)
+    res = res .. line .. "\n"
     if i == height then
       break
     end
@@ -35,7 +35,7 @@ local function read(path, height)
   end
   p:close()
 
-  return lines
+  return res
 end
 
 local function dirname(filepath)
@@ -100,10 +100,11 @@ local function render_focus(ctx)
     if n.is_file then
       return read(n.absolute_path, ctx.layout_size.height)
     elseif n.is_dir then
-      return offset(
+      local res = offset(
         state.listings[n.absolute_path] or list(n.absolute_path),
         ctx.layout_size.height
       )
+      return table.concat(res, "\n")
     else
       return stat(n)
     end
@@ -125,7 +126,7 @@ local parent = {
 local focus = {
   CustomContent = {
     body = {
-      DynamicList = {
+      DynamicParagraph = {
         render = "custom.tri_pane.render_focus",
       },
     },

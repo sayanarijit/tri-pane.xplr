@@ -14,20 +14,38 @@ local function invert(text)
   return "\x1b[1;7m " .. text .. " \x1b[0m"
 end
 
+local function datetime(num)
+  return tostring(os.date("%a %b %d %H:%M:%S %Y", num / 1000000000))
+end
+
 local function stat(node)
-  return node.mime_essence
+  return node.absolute_path
+      .. "\n Type: "
+      .. node.mime_essence
+      .. "\n Size: "
+      .. node.human_size
+      .. "\n Created: "
+      .. datetime(node.created)
+      .. "\n Modified: "
+      .. datetime(node.last_modified)
+      .. "\n Owner: "
+      .. string.format("%s:%s", node.uid, node.gid)
 end
 
 local function read(path, height)
   local p = io.open(path)
 
   if p == nil then
-    return stat(path)
+    return nil
   end
 
   local i = 0
   local res = ""
   for line in p:lines() do
+    if line:match("[^ -~\n\t]") then
+      return
+    end
+
     res = res .. line .. "\n"
     if i == height then
       break
@@ -80,7 +98,7 @@ local function list(path)
   return state.listings[path]
 end
 
-local function render_parent(ctx)
+local function render_left_pane(ctx)
   local parent, _ = dirname(ctx.app.pwd)
   local listing = { focus = 0, files = {} }
   if parent == "/" then
@@ -93,7 +111,7 @@ local function render_parent(ctx)
   return offset(listing, ctx.layout_size.height)
 end
 
-local function render_focus(ctx)
+local function render_right_pane(ctx)
   local n = ctx.app.focused_node
 
   if n and n.canonical then
@@ -102,7 +120,12 @@ local function render_focus(ctx)
 
   if n then
     if n.is_file then
-      return read(n.absolute_path, ctx.layout_size.height)
+      local success, res = pcall(read, n.absolute_path, ctx.layout_size.height)
+      if success and res ~= nil then
+        return res
+      else
+        return stat(n)
+      end
     elseif n.is_dir then
       local res = offset(
         state.listings[n.absolute_path] or list(n.absolute_path),
@@ -121,7 +144,7 @@ local parent = {
   CustomContent = {
     body = {
       DynamicList = {
-        render = "custom.tri_pane.render_parent",
+        render = "custom.tri_pane.render_left_pane",
       },
     },
   },
@@ -131,42 +154,8 @@ local focus = {
   CustomContent = {
     body = {
       DynamicParagraph = {
-        render = "custom.tri_pane.render_focus",
+        render = "custom.tri_pane.render_right_pane",
       },
-    },
-  },
-}
-
-local layout = {
-  Horizontal = {
-    config = {
-      constraints = {
-        { Percentage = 30 },
-        { Percentage = 40 },
-        { Percentage = 30 },
-      },
-    },
-    splits = {
-      parent,
-      "Table",
-      focus,
-    },
-  },
-}
-
-local full_layout = {
-  Vertical = {
-    config = {
-      constraints = {
-        { Length = 3 },
-        { Min = 1 },
-        { Length = 3 },
-      },
-    },
-    splits = {
-      "SortAndFilter",
-      layout,
-      "InputAndLogs",
     },
   },
 }
@@ -200,15 +189,59 @@ end
 
 local function setup(args)
   args = args or {}
+
   if args.as_default_layout == nil then
     args.as_default_layout = true
   end
 
+  args.layout_key = args.layout_key or "T"
+
+  args.left_pane_width = args.left_pane_width or { Percentage = 20 }
+  args.middle_pane_width = args.middle_pane_width or { Percentage = 50 }
+  args.right_pane_width = args.right_pane_width or { Percentage = 30 }
+
+  args.left_pane_renderer = args.left_pane_renderer or render_left_pane
+  args.right_pane_renderer = args.right_pane_renderer or render_right_pane
+
   xplr.fn.custom.tri_pane = {}
-  xplr.fn.custom.tri_pane.render_parent = render_parent
-  xplr.fn.custom.tri_pane.render_focus = render_focus
+  xplr.fn.custom.tri_pane.render_left_pane = args.left_pane_renderer
+  xplr.fn.custom.tri_pane.render_right_pane = args.right_pane_renderer
   xplr.fn.custom.tri_pane.enter = enter
   xplr.fn.custom.tri_pane.back = back
+
+  local layout = {
+    Horizontal = {
+      config = {
+        constraints = {
+          args.left_pane_width,
+          args.middle_pane_width,
+          args.right_pane_width,
+        },
+      },
+      splits = {
+        parent,
+        "Table",
+        focus,
+      },
+    },
+  }
+
+  local full_layout = {
+    Vertical = {
+      config = {
+        constraints = {
+          { Length = 3 },
+          { Min = 1 },
+          { Length = 3 },
+        },
+      },
+      splits = {
+        "SortAndFilter",
+        layout,
+        "InputAndLogs",
+      },
+    },
+  }
 
   xplr.config.layouts.custom.tri_pane = full_layout
 
@@ -216,7 +249,7 @@ local function setup(args)
     xplr.config.layouts.builtin.default = full_layout
   else
     xplr.config.layouts.custom.tri_pane = full_layout
-    xplr.config.modes.builtin.switch_layout.key_bindings.on_key.T = {
+    xplr.config.modes.builtin.switch_layout.key_bindings.on_key[args.layout_key] = {
       help = "tri pane",
       messages = {
         "PopMode",

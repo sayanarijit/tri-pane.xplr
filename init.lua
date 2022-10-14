@@ -2,9 +2,42 @@
 local xplr = xplr
 ---@diagnostic enable
 
+local no_color = os.getenv("NO_COLOR")
 local state = {
   listings = {},
 }
+
+local function green(x)
+  if no_color == nil then
+    return "\x1b[32m" .. x .. "\x1b[0m"
+  else
+    return x
+  end
+end
+
+local function yellow(x)
+  if no_color == nil then
+    return "\x1b[33m" .. x .. "\x1b[0m"
+  else
+    return x
+  end
+end
+
+local function red(x)
+  if no_color == nil then
+    return "\x1b[31m" .. x .. "\x1b[0m"
+  else
+    return x
+  end
+end
+
+local function bit(x, color, cond)
+  if cond then
+    return color(x)
+  else
+    return color("-")
+  end
+end
 
 local function quote(str)
   return "'" .. string.gsub(str, "'", [['"'"']]) .. "'"
@@ -18,18 +51,74 @@ local function datetime(num)
   return tostring(os.date("%a %b %d %H:%M:%S %Y", num / 1000000000))
 end
 
+local function permissions(p)
+  local r = ""
+
+  r = r .. bit("r", green, p.user_read)
+  r = r .. bit("w", yellow, p.user_write)
+
+  if p.user_execute == false and p.setuid == false then
+    r = r .. bit("-", red, p.user_execute)
+  elseif p.user_execute == true and p.setuid == false then
+    r = r .. bit("x", red, p.user_execute)
+  elseif p.user_execute == false and p.setuid == true then
+    r = r .. bit("S", red, p.user_execute)
+  else
+    r = r .. bit("s", red, p.user_execute)
+  end
+
+  r = r .. bit("r", green, p.group_read)
+  r = r .. bit("w", yellow, p.group_write)
+
+  if p.group_execute == false and p.setuid == false then
+    r = r .. bit("-", red, p.group_execute)
+  elseif p.group_execute == true and p.setuid == false then
+    r = r .. bit("x", red, p.group_execute)
+  elseif p.group_execute == false and p.setuid == true then
+    r = r .. bit("S", red, p.group_execute)
+  else
+    r = r .. bit("s", red, p.group_execute)
+  end
+
+  r = r .. bit("r", green, p.other_read)
+  r = r .. bit("w", yellow, p.other_write)
+
+  if p.other_execute == false and p.setuid == false then
+    r = r .. bit("-", red, p.other_execute)
+  elseif p.other_execute == true and p.setuid == false then
+    r = r .. bit("x", red, p.other_execute)
+  elseif p.other_execute == false and p.setuid == true then
+    r = r .. bit("T", red, p.other_execute)
+  else
+    r = r .. bit("t", red, p.other_execute)
+  end
+
+  return r
+end
+
 local function stat(node)
-  return node.absolute_path
-      .. "\n Type: "
-      .. node.mime_essence
-      .. "\n Size: "
+  local type = node.mime_essence
+  if node.is_symlink then
+    if node.is_broken then
+      type = "broken symlink"
+    else
+      type = "symlink to: " .. node.symlink.absolute_path
+    end
+  end
+
+  return invert(node.relative_path)
+      .. "\n Type     : "
+      .. type
+      .. "\n Size     : "
       .. node.human_size
-      .. "\n Created: "
-      .. datetime(node.created)
-      .. "\n Modified: "
-      .. datetime(node.last_modified)
-      .. "\n Owner: "
+      .. "\n Owner    : "
       .. string.format("%s:%s", node.uid, node.gid)
+      .. "\n Perm     : "
+      .. permissions(node.permissions)
+      .. "\n Created  : "
+      .. datetime(node.created)
+      .. "\n Modified : "
+      .. datetime(node.last_modified)
 end
 
 local function read(path, height)

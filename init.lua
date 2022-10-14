@@ -76,15 +76,19 @@ local function offset(listing, height)
   return result
 end
 
-local function list(path)
+local function list(path, height)
   if state.listings[path] == nil then
     local files = {}
     local tmpfile = os.tmpname()
+
     assert(io.popen("ls -a " .. quote(path) .. " > " .. tmpfile .. " 2> /dev/null ")):close()
+
     local pfile = assert(io.open(tmpfile))
     local i = 1
     for file in pfile:lines() do
-      if i > 2 then
+      if i > height then
+        break
+      elseif i > 2 then
         table.insert(files, file)
       else
         i = i + 1
@@ -104,19 +108,15 @@ local function render_left_pane(ctx)
   if parent == "/" then
     -- Empty
   elseif parent == "" then
-    listing = state.listings["/"] or list("/")
+    listing = state.listings["/"] or list("/", ctx.layout_size.height)
   else
-    listing = state.listings[parent] or list(parent)
+    listing = state.listings[parent] or list(parent, ctx.layout_size.height)
   end
   return offset(listing, ctx.layout_size.height)
 end
 
 local function render_right_pane(ctx)
   local n = ctx.app.focused_node
-
-  if n and n.canonical then
-    n = n.canonical
-  end
 
   if n then
     if n.is_file then
@@ -128,7 +128,7 @@ local function render_right_pane(ctx)
       end
     elseif n.is_dir then
       local res = offset(
-        state.listings[n.absolute_path] or list(n.absolute_path),
+        state.listings[n.absolute_path] or list(n.absolute_path, ctx.layout_size.height),
         ctx.layout_size.height
       )
       return table.concat(res, "\n")
@@ -140,7 +140,7 @@ local function render_right_pane(ctx)
   end
 end
 
-local parent = {
+local left_pane = {
   CustomContent = {
     body = {
       DynamicList = {
@@ -150,7 +150,7 @@ local parent = {
   },
 }
 
-local focus = {
+local right_pane = {
   CustomContent = {
     body = {
       DynamicParagraph = {
@@ -219,9 +219,9 @@ local function setup(args)
         },
       },
       splits = {
-        parent,
+        left_pane,
         "Table",
-        focus,
+        right_pane,
       },
     },
   }

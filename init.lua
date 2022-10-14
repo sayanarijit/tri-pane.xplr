@@ -86,7 +86,7 @@ local function list(path, height)
     local pfile = assert(io.open(tmpfile))
     local i = 1
     for file in pfile:lines() do
-      if i > height then
+      if i > height + 1 then
         break
       elseif i > 2 then
         table.insert(files, file)

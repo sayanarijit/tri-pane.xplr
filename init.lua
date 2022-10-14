@@ -169,8 +169,12 @@ local function list(path, height)
   if state.listings[path] == nil then
     local files = {}
     local tmpfile = os.tmpname()
+    local lscmd = "ls "
+    if xplr.config.general.show_hidden then
+      lscmd = lscmd .. "-a "
+    end
 
-    assert(io.popen("ls -a " .. quote(path) .. " > " .. tmpfile .. " 2> /dev/null ")):close()
+    assert(io.popen(lscmd .. quote(path) .. " > " .. tmpfile .. " 2> /dev/null ")):close()
 
     local pfile = assert(io.open(tmpfile))
     local i = 1

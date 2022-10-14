@@ -225,7 +225,7 @@ local function render_right_pane(ctx)
       return stat(n)
     end
   else
-    return {}
+    return ""
   end
 end
 

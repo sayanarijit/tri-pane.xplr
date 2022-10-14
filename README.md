@@ -47,3 +47,8 @@ https://user-images.githubusercontent.com/11632726/195410250-51cfe26d-5ca3-472d-
 
 If you have set `as_default_layout = false`, you need to switch to this mode manually by
 pressing `ctrl-w` and then `T`.
+
+## Also See
+
+- [zentable.xplr](https://github.com/sayanarijit/zentable.xplr)
+- [dual-pane.xplr](https://github.com/sayanarijit/dual-pane.xplr)

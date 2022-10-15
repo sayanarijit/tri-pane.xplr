@@ -132,6 +132,7 @@ local function read(path, height)
   local res = ""
   for line in p:lines() do
     if line:match("[^ -~\n\t]") then
+      p:close()
       return
     end
 

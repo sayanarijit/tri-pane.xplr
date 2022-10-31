@@ -44,7 +44,11 @@ local function quote(str)
 end
 
 local function invert(text)
-  return "\x1b[1;7m " .. text .. " \x1b[0m"
+  if no_color then
+    return text
+  else
+    return "\x1b[1;7m " .. text .. " \x1b[0m"
+  end
 end
 
 local function datetime(num)
@@ -148,11 +152,16 @@ local function read(path, height)
 end
 
 local function dirname(filepath)
+  if xplr.util ~= nil then
+    return xplr.util.dirname(filepath)
+  end
+
   local is_changed = false
   local result = filepath:gsub("/([^/]+)$", function()
     is_changed = true
     return ""
   end)
+
   return result, is_changed
 end
 
@@ -166,45 +175,64 @@ local function offset(listing, height)
   return result
 end
 
-local function list(path, height)
-  if state.listings[path] == nil then
-    local files = {}
-    local tmpfile = os.tmpname()
-    local lscmd = "ls "
-    if xplr.config.general.show_hidden then
-      lscmd = lscmd .. "-a "
+local function list(path, explorer_config, height)
+  local files = {}
+  if xplr.util ~= nil then
+    local ok, nodes = pcall(xplr.util.explore, path, explorer_config)
+    if not ok then
+      nodes = {}
     end
-
-    assert(io.popen(lscmd .. quote(path) .. " > " .. tmpfile .. " 2> /dev/null ")):close()
-
-    local pfile = assert(io.open(tmpfile))
-    local i = 1
-    for file in pfile:lines() do
+    for i, node in ipairs(nodes) do
       if i > height + 1 then
         break
-      elseif i > 2 then
-        table.insert(files, file)
       else
+        table.insert(files, node.relative_path)
         i = i + 1
       end
     end
-    pfile:close()
-    os.remove(tmpfile)
+  else
+    if state.listings[path] == nil then
+      local tmpfile = os.tmpname()
+      local lscmd = "ls "
+      if xplr.config.general.show_hidden then
+        lscmd = lscmd .. "-a "
+      end
 
-    state.listings[path] = { files = files, focus = 0 }
+      assert(io.popen(lscmd .. quote(path) .. " > " .. tmpfile .. " 2> /dev/null ")):close()
+
+      local pfile = assert(io.open(tmpfile))
+      local i = 1
+      for file in pfile:lines() do
+        if i > height + 1 then
+          break
+        elseif i > 2 then
+          table.insert(files, file)
+        else
+          i = i + 1
+        end
+      end
+      pfile:close()
+      os.remove(tmpfile)
+    end
   end
+
+  state.listings[path] = { files = files, focus = 0 }
   return state.listings[path]
 end
 
 local function render_left_pane(ctx)
   local parent, _ = dirname(ctx.app.pwd)
   local listing = { focus = 0, files = {} }
-  if parent == "/" then
+  if xplr.util == nil and parent == "/" then
     -- Empty
-  elseif parent == "" then
-    listing = state.listings["/"] or list("/", ctx.layout_size.height)
+  elseif xplr.util == nil and parent == "" then
+    listing = state.listings["/"]
+        or list("/", ctx.app.explorer_config, ctx.layout_size.height)
+  elseif parent ~= nil and parent ~= "" then
+    listing = state.listings[parent]
+        or list(parent, ctx.app.explorer_config, ctx.layout_size.height)
   else
-    listing = state.listings[parent] or list(parent, ctx.layout_size.height)
+    listing = { files = {}, focus = 0 }
   end
   return offset(listing, ctx.layout_size.height)
 end
@@ -222,7 +250,8 @@ local function render_right_pane(ctx)
       end
     elseif n.is_dir then
       local res = offset(
-        state.listings[n.absolute_path] or list(n.absolute_path, ctx.layout_size.height),
+        state.listings[n.absolute_path]
+        or list(n.absolute_path, ctx.app.explorer_config, ctx.layout_size.height),
         ctx.layout_size.height
       )
       return table.concat(res, "\n")

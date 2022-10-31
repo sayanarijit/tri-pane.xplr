@@ -176,22 +176,22 @@ local function offset(listing, height)
 end
 
 local function list(path, explorer_config, height)
-  local files = {}
-  if xplr.util ~= nil then
-    local ok, nodes = pcall(xplr.util.explore, path, explorer_config)
-    if not ok then
-      nodes = {}
-    end
-    for i, node in ipairs(nodes) do
-      if i > height + 1 then
-        break
-      else
-        table.insert(files, node.relative_path)
-        i = i + 1
+  if state.listings[path] == nil then
+    local files = {}
+    if xplr.util ~= nil then
+      local ok, nodes = pcall(xplr.util.explore, path, explorer_config)
+      if not ok then
+        nodes = {}
       end
-    end
-  else
-    if state.listings[path] == nil then
+      for i, node in ipairs(nodes) do
+        if i > height + 1 then
+          break
+        else
+          table.insert(files, node.relative_path)
+          i = i + 1
+        end
+      end
+    else
       local tmpfile = os.tmpname()
       local lscmd = "ls "
       if xplr.config.general.show_hidden then
@@ -214,9 +214,10 @@ local function list(path, explorer_config, height)
       pfile:close()
       os.remove(tmpfile)
     end
+
+    state.listings[path] = { files = files, focus = 0 }
   end
 
-  state.listings[path] = { files = files, focus = 0 }
   return state.listings[path]
 end
 

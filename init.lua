@@ -179,7 +179,8 @@ local function list(path, explorer_config, height)
   if state.listings[path] == nil then
     local files = {}
     if xplr.util ~= nil then
-      local ok, nodes = pcall(xplr.util.explore, path, explorer_config)
+      local config = { sorters = explorer_config.sorters, filters = {}, serchers = {} }
+      local ok, nodes = pcall(xplr.util.explore, path, config)
       if not ok then
         nodes = {}
       end
@@ -188,7 +189,6 @@ local function list(path, explorer_config, height)
           break
         else
           table.insert(files, node.relative_path)
-          i = i + 1
         end
       end
     else

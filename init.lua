@@ -39,10 +39,6 @@ local function bit(x, color, cond)
   end
 end
 
-local function quote(str)
-  return "'" .. string.gsub(str, "'", [['"'"']]) .. "'"
-end
-
 local function invert(text)
   if no_color then
     return text
@@ -111,18 +107,18 @@ local function stat(node)
   end
 
   return invert(node.relative_path)
-      .. "\n Type     : "
-      .. type
-      .. "\n Size     : "
-      .. node.human_size
-      .. "\n Owner    : "
-      .. string.format("%s:%s", node.uid, node.gid)
-      .. "\n Perm     : "
-      .. permissions(node.permissions)
-      .. "\n Created  : "
-      .. datetime(node.created)
-      .. "\n Modified : "
-      .. datetime(node.last_modified)
+    .. "\n Type     : "
+    .. type
+    .. "\n Size     : "
+    .. node.human_size
+    .. "\n Owner    : "
+    .. string.format("%s:%s", node.uid, node.gid)
+    .. "\n Perm     : "
+    .. permissions(node.permissions)
+    .. "\n Created  : "
+    .. datetime(node.created)
+    .. "\n Modified : "
+    .. datetime(node.last_modified)
 end
 
 local function read(path, height)
@@ -151,20 +147,6 @@ local function read(path, height)
   return res
 end
 
-local function dirname(filepath)
-  if xplr.util ~= nil then
-    return xplr.util.dirname(filepath)
-  end
-
-  local is_changed = false
-  local result = filepath:gsub("/([^/]+)$", function()
-    is_changed = true
-    return ""
-  end)
-
-  return result, is_changed
-end
-
 local function offset(listing, height)
   local h = height - 3
   local start = (listing.focus - (listing.focus % h))
@@ -178,41 +160,18 @@ end
 local function list(path, explorer_config, height)
   if state.listings[path] == nil then
     local files = {}
-    if xplr.util ~= nil then
-      local config = { sorters = explorer_config.sorters, filters = {}, serchers = {} }
-      local ok, nodes = pcall(xplr.util.explore, path, config)
-      if not ok then
-        nodes = {}
-      end
-      for i, node in ipairs(nodes) do
-        if i > height + 1 then
-          break
-        else
-          table.insert(files, node.relative_path)
-        end
-      end
-    else
-      local tmpfile = os.tmpname()
-      local lscmd = "ls "
-      if xplr.config.general.show_hidden then
-        lscmd = lscmd .. "-a "
-      end
+    local config = { sorters = explorer_config.sorters }
+    local ok, nodes = pcall(xplr.util.explore, path, config)
+    if not ok then
+      nodes = {}
+    end
 
-      assert(io.popen(lscmd .. quote(path) .. " > " .. tmpfile .. " 2> /dev/null ")):close()
-
-      local pfile = assert(io.open(tmpfile))
-      local i = 1
-      for file in pfile:lines() do
-        if i > height + 1 then
-          break
-        elseif i > 2 then
-          table.insert(files, file)
-        else
-          i = i + 1
-        end
+    for i, node in ipairs(nodes) do
+      if i > height + 1 then
+        break
+      else
+        table.insert(files, node.relative_path)
       end
-      pfile:close()
-      os.remove(tmpfile)
     end
 
     state.listings[path] = { files = files, focus = 0 }
@@ -222,19 +181,13 @@ local function list(path, explorer_config, height)
 end
 
 local function render_left_pane(ctx)
-  local parent, _ = dirname(ctx.app.pwd)
-  local listing = { focus = 0, files = {} }
-  if xplr.util == nil and parent == "/" then
-    -- Empty
-  elseif xplr.util == nil and parent == "" then
-    listing = state.listings["/"]
-        or list("/", ctx.app.explorer_config, ctx.layout_size.height)
-  elseif parent ~= nil and parent ~= "" then
-    listing = state.listings[parent]
-        or list(parent, ctx.app.explorer_config, ctx.layout_size.height)
-  else
-    listing = { files = {}, focus = 0 }
+  if ctx.app.pwd == "/" then
+    return {}
   end
+
+  local parent = xplr.util.dirname(ctx.app.pwd)
+  local listing = state.listings[parent]
+    or list(parent, ctx.app.explorer_config, ctx.layout_size.height)
   return offset(listing, ctx.layout_size.height)
 end
 
@@ -252,7 +205,7 @@ local function render_right_pane(ctx)
     elseif n.is_dir then
       local res = offset(
         state.listings[n.absolute_path]
-        or list(n.absolute_path, ctx.app.explorer_config, ctx.layout_size.height),
+          or list(n.absolute_path, ctx.app.explorer_config, ctx.layout_size.height),
         ctx.layout_size.height
       )
       return table.concat(res, "\n")

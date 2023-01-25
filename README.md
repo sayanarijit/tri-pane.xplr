@@ -40,6 +40,8 @@ https://user-images.githubusercontent.com/11632726/195410250-51cfe26d-5ca3-472d-
     left_pane_width = { Percentage = 20 },
     middle_pane_width = { Percentage = 50 },
     right_pane_width = { Percentage = 30 },
+    left_pane_renderer = custom_function_to_render_left_pane,
+    right_pane_renderer = custom_function_to_render_right_pane
   })
   ```
 

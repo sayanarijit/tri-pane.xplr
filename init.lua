@@ -3,9 +3,6 @@ local xplr = xplr
 ---@diagnostic enable
 
 local no_color = os.getenv("NO_COLOR")
-local state = {
-  listings = {},
-}
 
 local function green(x)
   if no_color == nil then
@@ -36,14 +33,6 @@ local function bit(x, color, cond)
     return color(x)
   else
     return color("-")
-  end
-end
-
-local function invert(text)
-  if no_color then
-    return text
-  else
-    return "\x1b[1;7m " .. text .. " \x1b[0m"
   end
 end
 
@@ -106,19 +95,18 @@ local function stat(node)
     end
   end
 
-  return invert(node.relative_path)
-    .. "\n Type     : "
-    .. type
-    .. "\n Size     : "
-    .. node.human_size
-    .. "\n Owner    : "
-    .. string.format("%s:%s", node.uid, node.gid)
-    .. "\n Perm     : "
-    .. permissions(node.permissions)
-    .. "\n Created  : "
-    .. datetime(node.created)
-    .. "\n Modified : "
-    .. datetime(node.last_modified)
+  return "Type     : "
+      .. type
+      .. "\nSize     : "
+      .. node.human_size
+      .. "\nOwner    : "
+      .. string.format("%s:%s", node.uid, node.gid)
+      .. "\nPerm     : "
+      .. permissions(node.permissions)
+      .. "\nCreated  : "
+      .. datetime(node.created)
+      .. "\nModified : "
+      .. datetime(node.last_modified)
 end
 
 local function read(path, height)
@@ -157,27 +145,46 @@ local function offset(listing, height)
   return result
 end
 
-local function list(path, explorer_config, height)
-  if state.listings[path] == nil then
-    local files = {}
-    local config = { sorters = explorer_config.sorters }
-    local ok, nodes = pcall(xplr.util.explore, path, config)
-    if not ok then
-      nodes = {}
-    end
-
-    for i, node in ipairs(nodes) do
-      if i > height + 1 then
-        break
-      else
-        table.insert(files, node.relative_path)
-      end
-    end
-
-    state.listings[path] = { files = files, focus = 0 }
+local function list(parent, focused, explorer_config, height)
+  local files, focus = {}, 0
+  local config = { sorters = explorer_config.sorters }
+  local ok, nodes = pcall(xplr.util.explore, parent, config)
+  if not ok then
+    nodes = {}
   end
 
-  return state.listings[path]
+  for i, node in ipairs(nodes) do
+    if i > height + 1 then
+      break
+    else
+      local rel = node.relative_path
+      if rel == focused then
+        focus = i
+      end
+      if node.is_dir then
+        rel = rel .. "/"
+      end
+      table.insert(files, rel)
+    end
+  end
+
+  return { files = files, focus = focus }
+end
+
+local function tree_view(files, focus)
+  local count = #files
+  local res = {}
+  for i, file in ipairs(files) do
+    local arrow, tree = " ", "├"
+    if i == focus then
+      arrow = "▸"
+    end
+    if i == count then
+      tree = "└"
+    end
+    table.insert(res, tree .. arrow .. file)
+  end
+  return res
 end
 
 local function render_left_pane(ctx)
@@ -186,9 +193,9 @@ local function render_left_pane(ctx)
   end
 
   local parent = xplr.util.dirname(ctx.app.pwd)
-  local listing = state.listings[parent]
-    or list(parent, ctx.app.explorer_config, ctx.layout_size.height)
-  return offset(listing, ctx.layout_size.height)
+  local focused = xplr.util.basename(ctx.app.pwd)
+  local listing = list(parent, focused, ctx.app.explorer_config, ctx.layout_size.height)
+  return tree_view(offset(listing, ctx.layout_size.height), listing.focus)
 end
 
 local function render_right_pane(ctx)
@@ -203,12 +210,10 @@ local function render_right_pane(ctx)
         return stat(n)
       end
     elseif n.is_dir then
-      local res = offset(
-        state.listings[n.absolute_path]
-          or list(n.absolute_path, ctx.app.explorer_config, ctx.layout_size.height),
-        ctx.layout_size.height
-      )
-      return table.concat(res, "\n")
+      local listing =
+      list(n.absolute_path, nil, ctx.app.explorer_config, ctx.layout_size.height)
+      local visible = offset(listing, ctx.layout_size.height)
+      return table.concat(tree_view(visible, listing.focus), "\n")
     else
       return stat(n)
     end
@@ -237,33 +242,6 @@ local right_pane = {
   },
 }
 
-local function capture(app)
-  local files = {}
-  for i, node in ipairs(app.directory_buffer.nodes) do
-    local path = node.relative_path
-    if i == app.directory_buffer.focus + 1 then
-      path = invert(path)
-    end
-    table.insert(files, path)
-  end
-
-  state.listings[app.pwd] = { files = files, focus = app.directory_buffer.focus }
-end
-
-local function enter(app)
-  capture(app)
-  return {
-    "Enter",
-  }
-end
-
-local function back(app)
-  capture(app)
-  return {
-    "Back",
-  }
-end
-
 local function setup(args)
   args = args or {}
 
@@ -283,8 +261,6 @@ local function setup(args)
   xplr.fn.custom.tri_pane = {}
   xplr.fn.custom.tri_pane.render_left_pane = args.left_pane_renderer
   xplr.fn.custom.tri_pane.render_right_pane = args.right_pane_renderer
-  xplr.fn.custom.tri_pane.enter = enter
-  xplr.fn.custom.tri_pane.back = back
 
   local layout = {
     Horizontal = {
@@ -334,14 +310,6 @@ local function setup(args)
       },
     }
   end
-
-  xplr.config.modes.builtin.default.key_bindings.on_key.right.messages = {
-    { CallLuaSilently = "custom.tri_pane.enter" },
-  }
-
-  xplr.config.modes.builtin.default.key_bindings.on_key.left.messages = {
-    { CallLuaSilently = "custom.tri_pane.back" },
-  }
 end
 
 return { setup = setup }

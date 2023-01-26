@@ -142,10 +142,10 @@ local function offset(listing, height)
   for i = start + 1, start + h, 1 do
     table.insert(result, listing.files[i])
   end
-  return result
+  return result, start
 end
 
-local function list(parent, focused, explorer_config, height)
+local function list(parent, focused, explorer_config)
   local files, focus = {}, 0
   local config = { sorters = explorer_config.sorters }
   local ok, nodes = pcall(xplr.util.explore, parent, config)
@@ -154,32 +154,29 @@ local function list(parent, focused, explorer_config, height)
   end
 
   for i, node in ipairs(nodes) do
-    if i > height + 1 then
-      break
-    else
-      local rel = node.relative_path
-      if rel == focused then
-        focus = i
-      end
-      if node.is_dir then
-        rel = rel .. "/"
-      end
-      table.insert(files, rel)
+    local rel = node.relative_path
+    if rel == focused then
+      focus = i
     end
+    if node.is_dir then
+      rel = rel .. "/"
+    end
+    table.insert(files, rel)
   end
 
   return { files = files, focus = focus }
 end
 
-local function tree_view(files, focus)
-  local count = #files
+local function tree_view(listing, height)
+  local count = #listing.files
+  local files, start = offset(listing, height)
   local res = {}
   for i, file in ipairs(files) do
     local arrow, tree = " ", "├"
-    if i == focus then
+    if start + i == listing.focus then
       arrow = "▸"
     end
-    if i == count then
+    if start + i == count then
       tree = "└"
     end
     table.insert(res, tree .. arrow .. file)
@@ -194,8 +191,8 @@ local function render_left_pane(ctx)
 
   local parent = xplr.util.dirname(ctx.app.pwd)
   local focused = xplr.util.basename(ctx.app.pwd)
-  local listing = list(parent, focused, ctx.app.explorer_config, ctx.layout_size.height)
-  return tree_view(offset(listing, ctx.layout_size.height), listing.focus)
+  local listing = list(parent, focused, ctx.app.explorer_config)
+  return tree_view(listing, ctx.layout_size.height)
 end
 
 local function render_right_pane(ctx)
@@ -210,10 +207,8 @@ local function render_right_pane(ctx)
         return stat(n)
       end
     elseif n.is_dir then
-      local listing =
-      list(n.absolute_path, nil, ctx.app.explorer_config, ctx.layout_size.height)
-      local visible = offset(listing, ctx.layout_size.height)
-      return table.concat(tree_view(visible, listing.focus), "\n")
+      local listing = list(n.absolute_path, nil, ctx.app.explorer_config)
+      return table.concat(tree_view(listing, ctx.layout_size.height), "\n")
     else
       return stat(n)
     end

@@ -54,3 +54,4 @@ pressing `ctrl-w` and then `T`.
 
 - [zentable.xplr](https://github.com/sayanarijit/zentable.xplr)
 - [dual-pane.xplr](https://github.com/sayanarijit/dual-pane.xplr)
+- [tree-view.xplr](https://github.com/sayanarijit/tree-view.xplr)
